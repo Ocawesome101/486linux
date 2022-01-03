@@ -1,0 +1,11 @@
+#!/bin/sh
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+clear
+printf "\e[93m ** \e[92mFourEightySix Linux\e[93m **\e[39m\n"
+cat /etc/welcome
+while true; do
+  openvt -c 1 -sw /bin/login
+  clear
+done
