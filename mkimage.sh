@@ -39,7 +39,7 @@ check () {
   printf "$blue=>$white Checking required utilities... \n"
   oargn="$#"
   while [ "$#" -gt 0 ]; do
-    printf "  $blue-$white Checking for$yellow $1$white ...\t"
+    printf "  $blue-$white Checking for$yellow $1$white ....\t"
     local found=$(command -v "$1")
     if ! [ "$found" ]; then
       printf "${red}not found$res\n"
@@ -55,7 +55,7 @@ check () {
   printf "\e[${oargn}A$blue=>$white Checking required utilities...$green done$res\e[${oargn}B\e[G"
 }
 
-check syslinux gcc make curl sfdisk bash git tar unxz sudo strip dd mkfs
+check syslinux gcc make curl sfdisk bash git patch tar unxz sudo strip dd mkfs
 
 mkdir -p $basedir
 cd $basedir
@@ -109,6 +109,8 @@ fi
 
 printf "$blue=>$white Compiling$yellow BusyBox$res\n"
 cd "$basedir/$busybox_dirname"
+printf "$blue=>$white Patching$yellow include/libbb.h$white\n"
+patch include/libbb.h <"$confbase/libbb.h.patch"
 $make
 
 printf "$blue=>$white Assembling final image\n"
