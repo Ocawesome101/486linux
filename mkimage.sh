@@ -9,6 +9,8 @@
 
 set -e
 
+confbase=$PWD
+
 # colors used
 red="\e[91m"
 green="\e[92m"
@@ -27,7 +29,7 @@ kernel_tarfile="$kernel_dirname.tar.xz"
 kernel_url="https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/$kernel_tarfile"
 
 busybox_dirname="busybox-$BUSYBOX_VERSION"
-busybox_tarfile="$busybox_dirname.tar.xz"
+busybox_tarfile="$busybox_dirname.tar.bz2"
 busybox_url="https://busybox.net/downloads/$busybox_tarfile"
 
 muslcrossmake="https://github.com/richfelker/musl-cross-make"
@@ -55,7 +57,8 @@ check () {
   printf "\e[${oargn}A$blue=>$white Checking required utilities...$green done$res\e[${oargn}B\e[G"
 }
 
-check syslinux gcc make curl sfdisk bash git patch tar unxz sudo strip dd mkfs
+check syslinux gcc make curl sfdisk bash git patch tar unxz sudo \
+  strip dd mkfs partprobe
 
 mkdir -p $basedir
 cd $basedir
@@ -69,7 +72,7 @@ fi
 
 if ! [ -e "$basedir/$kernel_dirname" ]; then
   printf "  $blue-$white Extracting source code:$yellow Linux$res\n"
-  $tar xf "$kernel_dirname"
+  $tar Jxf "$kernel_tarfile"
 fi
 
 if ! [ -e "$basedir/$busybox_tarfile" ]; then
@@ -79,7 +82,7 @@ fi
 
 if ! [ -e "$basedir/$busybox_dirname" ]; then
   printf "  $blue-$white Extracting source code:$yellow BusyBox$res\n"
-  $tar xf "$busybox_dirname"
+  $tar jxf "$busybox_tarfile"
 fi
 
 if ! [ -d "$basedir/muslcrossmake" ]; then
@@ -87,50 +90,58 @@ if ! [ -d "$basedir/muslcrossmake" ]; then
   $git clone "$muslcrossmake" "$basedir/muslcrossmake"
 fi
 
-confbase=$(dirname $0)
 printf "$blue=>$white Copying configuration files\n"
-cp "$confbase/kernel-config" "$basedir/$kernel_dirname/.config"
+cp "$confbase/linux-config" "$basedir/$kernel_dirname/.config"
 cp "$confbase/busybox-config" "$basedir/$busybox_dirname/.config"
 cp "$confbase/musl-cross-make-config" "$basedir/muslcrossmake/config.mak"
 
-printf "$blue=>$white Compiling$yellow Linux$res\n"
-cd "$basedir/$kernel_dirname"
-$make -j$(nproc)
+if ! [ -e "$basedir/$kernel_dirname/arch/x86/boot/bzImage" ]; then
+  printf "$blue=>$white Compiling$yellow Linux$res\n"
+  cd "$basedir/$kernel_dirname"
+  $make -j$(nproc)
+fi
 
-printf "$blue=>$white Compiling$yellow musl-cross-make$res\n"
-cd "$basedir/muslcrossmake"
-$make
-printf "$blue=>$white Installing$yellow musl-cross-make$res\n"
-$sudo $make install
+if ! [ $(command -v i486-linux-musl-gcc) ]; then
+  printf "$blue=>$white Compiling$yellow musl-cross-make$res\n"
+  cd "$basedir/muslcrossmake"
+  $make
+  printf "$blue=>$white Installing$yellow musl-cross-make$res\n"
+  $sudo $make install
+fi
+
 if ! [ $(echo $PATH | grep /usr/local/bin) ]; then
   printf "$blue=>$white Adding$yellow /usr/local/bin$white to your$green PATH$res\n"
   export PATH="$PATH:/usr/local/bin"
 fi
 
-printf "$blue=>$white Compiling$yellow BusyBox$res\n"
-cd "$basedir/$busybox_dirname"
-printf "$blue=>$white Patching$yellow include/libbb.h$white\n"
-patch include/libbb.h <"$confbase/libbb.h.patch"
-$make
+if ! [ -e "$basedir/$busybox_dirname/busybox" ]; then
+  printf "$blue=>$white Compiling$yellow BusyBox$res\n"
+  cd "$basedir/$busybox_dirname"
+  printf "$blue=>$white Patching$yellow include/libbb.h$white\n"
+  patch -R include/libbb.h <"$confbase/libbb.h.patch"
+  $make
+fi
 
 printf "$blue=>$white Assembling final image\n"
 cd "$basedir"
-mkdir boot rootfs
-$dd if=/dev/zero of=486linux.img bs=1m count=128 conv=notrunc,sync oflag=direct
-device="/dev/loop486"
-$sudo losetup $device 486linux.img
-cat $confbase/sfdisk-layout | $sudo $sfdisk $device
-$sudo partprobe $device
-$sudo $mkfs -t vfat ${device}p1
+$dd if=/dev/zero of=486linux.img bs=1M count=128 conv=notrunc,sync oflag=direct
+
+printf "  $blue-$white Setting up$yellow boot$white partition$res\n"
+device="$($sudo losetup -f)"
+cat $confbase/sfdisk-layout | $sfdisk "$basedir/486linux.img"
+$sudo losetup -P $device 486linux.img
+$sudo $mkfs -t fat -F 12 ${device}p1
 $sudo $mkfs -t ext2 ${device}p2
 $sudo syslinux -i ${device}p1
+$sudo sync
 $sudo $dd if=/usr/lib/syslinux/bios/mbr.bin of=${device} bs=440 count=1 \
   conv=notrunc
 $sudo mount ${device}p1 /mnt
-$sudo cp $confdir/syslinux.cfg /mnt/
-$sudo cp $basedir/arch/x86/boot/bzImage /mnt/linux
+$sudo cp $confbase/syslinux.cfg /mnt/
+$sudo cp $basedir/$kernel_dirname/arch/x86/boot/bzImage /mnt/linux
 $sudo umount /mnt
 
+printf "  $blue-$white Setting up$yellow root$white partition$res\n"
 $sudo mount ${device}p2 /mnt
 $sudo mkdir /mnt/{bin,dev,proc,sys,root,etc} /mnt/etc/init.d
 $sudo cp $basedir/$busybox_dirname/busybox /mnt/bin/busybox
@@ -139,12 +150,12 @@ $sudo ./busybox --install /mnt/bin
 cd -
 $sudo ln -s /mnt/bin /mnt/sbin
 
-$sudo cp $basedir/inittab /mnt/etc/inittab
-$sudo cp $basedir/initrc /mnt/etc/init.d/rc
-$sudo cp $basedir/{passwd,group,welcome} /mnt/etc/
+$sudo cp $confbase/inittab /mnt/etc/inittab
+$sudo cp $confbase/initrc /mnt/etc/init.d/rc
+$sudo cp $confbase/{passwd,group,welcome} /mnt/etc/
 
 $sudo umount /mnt
-
+sleep 0.5
 $sudo losetup -d $device
 
 printf "$blue=>$white The finished image is available at $yellow$basedir/486linux.img$res\n"
