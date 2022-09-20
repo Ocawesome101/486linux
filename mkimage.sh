@@ -109,6 +109,14 @@ else
   printf "  $blue-$white Source tarball present:$yellow Linux$res\n"
 fi
 
+# need to rebuild kernel if config has changed
+for i in $(diff $confbase/linux-config-$proc $basedir/$kernel_dirname/.config)
+do
+  printf "   $yellow->$white Config changed - Need to rebuild kernel$res\n"
+  rm -rf $basedir/$kernel_dirname
+  break
+done
+
 if ! [ -e "$basedir/$kernel_dirname" ]; then
   printf "  $blue-$white Extracting source code:$yellow Linux$res\n"
   $tar Jxf "$kernel_tarfile"
@@ -133,7 +141,7 @@ if ! [ -d "$basedir/muslcrossmake" ]; then
   $git checkout 0f22991b8d47837ef8dd60a0c43cf40fcf76217a
   cd -
 else
-  printf "  $blue-$white Source repository present:$yellow Linux$res\n"
+  printf "  $blue-$white Source repository present:$yellow musl-cross-make$res\n"
 fi
 
 printf "$blue=>$white Copying configuration files\n"
@@ -214,7 +222,8 @@ $sudo ln -s /mnt/bin /mnt/sbin
 
 $sudo cp $confbase/inittab /mnt/etc/inittab
 $sudo cp $confbase/initrc /mnt/etc/init.d/rc
-$sudo cp $confbase/{passwd,group,welcome} /mnt/etc/
+$sudo cp $confbase/{passwd,group,welcome,profile} /mnt/etc/
+$sudo cp $confbase/ashrc /mnt/root/.ashrc
 
 $sudo umount /mnt
 

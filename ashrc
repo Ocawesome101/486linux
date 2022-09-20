@@ -1,0 +1,2 @@
+export PS1="\e[92m\u\e[39m@\e[92m\h\e[39m: \e[94m\w\e[91m # \e[37m"
+alias free='free -hwt'
