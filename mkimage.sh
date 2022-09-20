@@ -220,6 +220,9 @@ $sudo ./busybox --install /mnt/bin
 cd -
 $sudo ln -s /mnt/bin /mnt/sbin
 
+# TODO: figure out how to statically build Lua again
+# i built it once, and couldn't figure out how to do it again :p
+$sudo cp $confbase/lua /mnt/bin/lua
 $sudo cp $confbase/inittab /mnt/etc/inittab
 $sudo cp $confbase/initrc /mnt/etc/init.d/rc
 $sudo cp $confbase/{passwd,group,welcome,profile} /mnt/etc/
