@@ -19,28 +19,12 @@ blue="\e[94m"
 white="\e[97m"
 res="\e[39;49m"
 
-if [ "$#" = 0 ] || ! [ -e "$1" ]; then
-  printf "usage: $(basename $0) DEVICE\n" 1>&2
+if [ "$#" -lt 2 ] || ! [ -e "$1" ]; then
+  printf "usage: $(basename $0) DEVICE PROCTYPE\n" 1>&2
+  printf "  DEVICE is where to install (will be overwritten!)\n" 1>&2
+  printf "  PROCTYPE is SX or DX (slightly different kernel config)\n" 1>&2
   exit 1
 fi
-
-printf "$red=>$yellow REALLY erase $green$1$yellow? This operation cannot be undone!$white "
-
-while true; do
-  printf "[y/N]: "
-  read;
-  case "$REPLY" in
-    [yY])
-      break
-      ;;
-    [nN])
-      exit 0
-      ;;
-    "")
-      exit 0
-      ;;
-  esac
-done
 
 LINUX_VERSION=${LINUX_VERSION:-"5.14.8"}
 BUSYBOX_VERSION=${BUSYBOX_VERSION:-"1.35.0"}
@@ -56,6 +40,16 @@ busybox_tarfile="$busybox_dirname.tar.bz2"
 busybox_url="https://busybox.net/downloads/$busybox_tarfile"
 
 muslcrossmake="https://github.com/richfelker/musl-cross-make"
+
+proc=
+if [ $2 = sx ] || [ $2 = SX ]; then
+  proc=sx
+elif [ $2 = dx ] || [ $2 = DX ]; then
+  proc=dx
+else
+  printf "${red}PROCTYPE must be one of: sx, SX, dx, DX\n$res" 1>&2
+  exit 1
+fi
 
 printf \
   "$yellow==>$white$green FourEightySix Linux Setup Script $yellow<==$res\n"
@@ -82,6 +76,24 @@ check () {
 
 check syslinux gcc-11 make curl sfdisk bash git patch tar unxz sudo \
   strip dd mkfs partprobe
+
+printf "$red=>$yellow REALLY erase $green$1$yellow? This operation cannot be undone!$white "
+
+while true; do
+  printf "[y/N]: "
+  read;
+  case "$REPLY" in
+    [yY])
+      break
+      ;;
+    [nN])
+      exit 0
+      ;;
+    "")
+      exit 0
+      ;;
+  esac
+done
 
 gcc=${gcc_11}
 
@@ -125,7 +137,7 @@ else
 fi
 
 printf "$blue=>$white Copying configuration files\n"
-cp "$confbase/linux-config" "$basedir/$kernel_dirname/.config"
+cp "$confbase/linux-config-$proc" "$basedir/$kernel_dirname/.config"
 cp "$confbase/busybox-config" "$basedir/$busybox_dirname/.config"
 cp "$confbase/musl-cross-make-config" "$basedir/muslcrossmake/config.mak"
 

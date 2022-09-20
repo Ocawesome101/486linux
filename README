@@ -2,3 +2,5 @@
 ==============
 
 This repository contains all the files necessary to build an image of 486Linux.  `mkimage.sh` should work to set up an image.  Please report bugs in this repository's issues tab.
+
+Update 2022-09-20: Now supports either the 486SX or the 486DX!
