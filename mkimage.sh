@@ -22,7 +22,7 @@ res="\e[39;49m"
 if [ "$#" -lt 2 ] || ! [ -e "$1" ]; then
   printf "usage: $(basename $0) DEVICE PROCTYPE\n" 1>&2
   printf "  DEVICE is where to install (will be overwritten!)\n" 1>&2
-  printf "  PROCTYPE is SX or DX (slightly different kernel config)\n" 1>&2
+  printf "  PROCTYPE is SX or DX (slightly different kernel config for 486DX vs 486SX)\n" 1>&2
   exit 1
 fi
 
@@ -57,25 +57,29 @@ printf \
 check () {
   printf "$blue=>$white Checking required utilities... \n"
   oargn="$#"
+  missing=""
   while [ "$#" -gt 0 ]; do
     printf "  $blue-$white Checking for$yellow $1$white ....\t"
     local found=$(command -v "$1")
     if ! [ "$found" ]; then
+      missing="$missing $1"
       printf "${red}not found$res\n"
-      printf "${red}Could not find a required utility$res\n"
-      exit 1
     fi
     export $(echo $1 | sed 's/-/_/g')=$found
     printf "${green}found$white: $yellow$found$res\n"
     shift
   done
+  if [ "$missing" != "" ]; then
+    printf "${red}Could not find one or more required utilities$res\n"
+    exit 1
+  fi
   # mildly cursed but it does work
   oargn=$(($oargn+1))
   printf "\e[${oargn}A$blue=>$white Checking required utilities...$green done$res\e[${oargn}B\e[G"
 }
 
-check syslinux gcc-11 make curl sfdisk bash git patch tar unxz sudo \
-  strip dd mkfs partprobe
+check syslinux make gcc-11 curl sfdisk bash git patch tar unxz sudo \
+  strip dd mkfs partprobe bison flex bc lzop
 
 printf "$red=>$yellow REALLY erase $green$1$yellow? This operation cannot be undone!$white "
 
@@ -103,10 +107,10 @@ cd $basedir
 printf "$blue=>$white Making sure you have the source code$res\n"
 
 if ! [ -e "$basedir/$kernel_tarfile" ]; then
-  printf "  $blue-$white Downloading source code:$yellow Linux$res\n"
+  printf "  $blue-$white Downloading source code:$yellow Linux $LINUX_VERSION$res\n"
   $curl --progress-bar "$kernel_url" > "$basedir/$kernel_tarfile"
 else
-  printf "  $blue-$white Source tarball present:$yellow Linux$res\n"
+  printf "  $blue-$white Source tarball present:$yellow Linux $LINUX_VERSION$res\n"
 fi
 
 # need to rebuild kernel if config has changed
@@ -123,10 +127,10 @@ if ! [ -e "$basedir/$kernel_dirname" ]; then
 fi
 
 if ! [ -e "$basedir/$busybox_tarfile" ]; then
-  printf "  $blue-$white Downloading source code:$yellow BusyBox$res\n"
+  printf "  $blue-$white Downloading source code:$yellow BusyBox $BUSYBOX_VERSION$res\n"
   $curl --progress-bar "$busybox_url" > "$basedir/$busybox_tarfile"
 else
-  printf "  $blue-$white Source tarball present:$yellow BusyBox$res\n"
+  printf "  $blue-$white Source tarball present:$yellow BusyBox $BUSYBOX_VERSION$res\n"
 fi
 
 if ! [ -e "$basedir/$busybox_dirname" ]; then
@@ -152,6 +156,8 @@ cp "$confbase/musl-cross-make-config" "$basedir/muslcrossmake/config.mak"
 if ! [ -e "$basedir/$kernel_dirname/arch/x86/boot/bzImage" ]; then
   printf "$blue=>$white Compiling$yellow Linux$res\n"
   cd "$basedir/$kernel_dirname"
+  # need to patch to use gcc 11, otherwise build fails
+  patch -R ./Makefile <"$confbase/linux-makefile.patch"
   $make -j$(nproc)
 else
   printf "  $blue-$white Skipping build:$yellow Linux$res\n"

@@ -1,0 +1,8 @@
+431c431
+< HOSTCC	= gcc-11
+---
+> HOSTCC	= gcc
+456c456
+< CC		= $(CROSS_COMPILE)gcc-11
+---
+> CC		= $(CROSS_COMPILE)gcc
