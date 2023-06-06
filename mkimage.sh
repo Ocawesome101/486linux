@@ -79,7 +79,7 @@ check () {
 }
 
 check syslinux make gcc-11 curl sfdisk bash git patch tar unxz sudo \
-  strip dd mkfs partprobe bison flex bc lzop
+  strip dd mkfs partprobe bison flex bc lzop mtools
 
 printf "$red=>$yellow REALLY erase $green$1$yellow? This operation cannot be undone!$white "
 
@@ -114,12 +114,13 @@ else
 fi
 
 # need to rebuild kernel if config has changed
-for i in $(diff $confbase/linux-config-$proc $basedir/$kernel_dirname/.config)
-do
+for i in $(diff $confbase/linux-config-$proc $basedir/$kernel_dirname/.config \
+  | grep "\<.+" | grep -v VERSION | grep -v "#" | grep -v "[0-9][cd][0-9]"); do
   printf "   $yellow->$white Config changed - Need to rebuild kernel$res\n"
   rm -rf $basedir/$kernel_dirname
   break
 done
+
 
 if ! [ -e "$basedir/$kernel_dirname" ]; then
   printf "  $blue-$white Extracting source code:$yellow Linux$res\n"
